@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2D Game Boilerplate - Game Grove</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #1a1a2e;
+            font-family: 'Courier New', monospace;
+            overflow: hidden;
+        }
+        
+        #gameContainer {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            z-index: 100;
+            font-size: 18px;
+        }
+        
+        #instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: white;
+            z-index: 100;
+            font-size: 14px;
+            opacity: 0.8;
+        }
+        
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <div id="ui">
+            <div>Score: <span id="score">0</span></div>
+            <div>Gems Collected: <span id="gems">0</span></div>
+        </div>
+        <div id="instructions">
+            Use ARROW KEYS or WASD to move • Collect the red gems!
+        </div>
+    </div>
+
+    <!-- Load Three.js from CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <script>
+        // Game variables
+        let scene, camera, renderer;
+        let player, gems = [];
+        let gameWidth = 800, gameHeight = 600;
+        let score = 0, gemsCollected = 0;
+        
+        // Input handling
+        const keys = {
+            left: false,
+            right: false,
+            up: false,
+            down: false
+        };
+        
+        // Game settings
+        const playerSpeed = 0.3;
+        const gemCount = 5;
+        const gemSize = 0.8;
+        const playerSize = 1;
+        
+        // Initialize the game
+        function init() {
+            // Create scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0f0f23);
+            
+            // Create orthographic camera for 2D view
+            const aspect = window.innerWidth / window.innerHeight;
+            const frustumSize = 20;
+            camera = new THREE.OrthographicCamera(
+                frustumSize * aspect / -2, frustumSize * aspect / 2,
+                frustumSize / 2, frustumSize / -2,
+                1, 1000
+            );
+            camera.position.z = 10;
+            
+            // Create renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            document.getElementById('gameContainer').appendChild(renderer.domElement);
+            
+            // Create player
+            createPlayer();
+            
+            // Create initial gems
+            for (let i = 0; i < gemCount; i++) {
+                createGem();
+            }
+            
+            // Add lights
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+            scene.add(ambientLight);
+            
+            const pointLight = new THREE.PointLight(0xffffff, 0.5);
+            pointLight.position.set(0, 0, 10);
+            scene.add(pointLight);
+            
+            // Start game loop
+            animate();
+        }
+        
+        // Create player
+        function createPlayer() {
+            const geometry = new THREE.PlaneGeometry(playerSize, playerSize);
+            const material = new THREE.MeshLambertMaterial({ 
+                color: 0x4a90ff,
+                transparent: true
+            });
+            player = new THREE.Mesh(geometry, material);
+            player.position.set(0, 0, 0);
+            scene.add(player);
+        }
+        
+        // Create gem
+        function createGem() {
+            const geometry = new THREE.PlaneGeometry(gemSize, gemSize);
+            const material = new THREE.MeshLambertMaterial({ 
+                color: 0xff4757,
+                transparent: true
+            });
+            const gem = new THREE.Mesh(geometry, material);
+            
+            // Random position within game bounds
+            const aspect = window.innerWidth / window.innerHeight;
+            const frustumSize = 20;
+            const maxX = (frustumSize * aspect / 2) - 2;
+            const maxY = (frustumSize / 2) - 2;
+            
+            gem.position.set(
+                (Math.random() - 0.5) * maxX * 2,
+                (Math.random() - 0.5) * maxY * 2,
+                0
+            );
+            
+            // Add rotation animation
+            gem.userData = {
+                rotationSpeed: 0.02 + Math.random() * 0.03,
+                bobSpeed: 0.02 + Math.random() * 0.02,
+                bobOffset: Math.random() * Math.PI * 2,
+                originalY: gem.position.y
+            };
+            
+            gems.push(gem);
+            scene.add(gem);
+        }
+        
+        // Update player movement
+        function updatePlayer() {
+            const aspect = window.innerWidth / window.innerHeight;
+            const frustumSize = 20;
+            const maxX = (frustumSize * aspect / 2) - playerSize/2;
+            const maxY = (frustumSize / 2) - playerSize/2;
+            
+            if (keys.left || keys.a) {
+                player.position.x -= playerSpeed;
+            }
+            if (keys.right || keys.d) {
+                player.position.x += playerSpeed;
+            }
+            if (keys.up || keys.w) {
+                player.position.y += playerSpeed;
+            }
+            if (keys.down || keys.s) {
+                player.position.y -= playerSpeed;
+            }
+            
+            // Keep player within bounds
+            player.position.x = Math.max(-maxX, Math.min(maxX, player.position.x));
+            player.position.y = Math.max(-maxY, Math.min(maxY, player.position.y));
+        }
+        
+        // Update gems
+        function updateGems() {
+            gems.forEach((gem, index) => {
+                // Animate gems
+                gem.rotation.z += gem.userData.rotationSpeed;
+                gem.position.y = gem.userData.originalY + Math.sin(Date.now() * 0.001 * gem.userData.bobSpeed + gem.userData.bobOffset) * 0.3;
+                
+                // Check collision with player
+                const distance = player.position.distanceTo(gem.position);
+                if (distance < (playerSize + gemSize) / 2) {
+                    // Collision detected!
+                    scene.remove(gem);
+                    gems.splice(index, 1);
+                    
+                    // Update score
+                    score += 100;
+                    gemsCollected++;
+                    updateUI();
+                    
+                    // Create new gem
+                    createGem();
+                    
+                    // Add visual feedback
+                    createCollectEffect(gem.position);
+                }
+            });
+        }
+        
+        // Create collection effect
+        function createCollectEffect(position) {
+            const geometry = new THREE.RingGeometry(0.5, 1.5, 8);
+            const material = new THREE.MeshBasicMaterial({ 
+                color: 0xffd700,
+                transparent: true,
+                opacity: 0.8
+            });
+            const effect = new THREE.Mesh(geometry, material);
+            effect.position.copy(position);
+            scene.add(effect);
+            
+            // Animate effect
+            const startTime = Date.now();
+            const animate = () => {
+                const elapsed = Date.now() - startTime;
+                const progress = elapsed / 500; // 500ms duration
+                
+                if (progress < 1) {
+                    effect.scale.setScalar(1 + progress * 2);
+                    effect.material.opacity = 0.8 * (1 - progress);
+                    requestAnimationFrame(animate);
+                } else {
+                    scene.remove(effect);
+                }
+            };
+            animate();
+        }
+        
+        // Update UI
+        function updateUI() {
+            document.getElementById('score').textContent = score;
+            document.getElementById('gems').textContent = gemsCollected;
+        }
+        
+        // Main game loop
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            updatePlayer();
+            updateGems();
+            
+            // Render
+            renderer.render(scene, camera);
+        }
+        
+        // Handle window resize
+        function onWindowResize() {
+            const aspect = window.innerWidth / window.innerHeight;
+            const frustumSize = 20;
+            
+            camera.left = frustumSize * aspect / -2;
+            camera.right = frustumSize * aspect / 2;
+            camera.top = frustumSize / 2;
+            camera.bottom = frustumSize / -2;
+            camera.updateProjectionMatrix();
+            
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        
+        // Event listeners
+        window.addEventListener('resize', onWindowResize);
+        
+        // Keyboard input
+        document.addEventListener('keydown', (event) => {
+            switch(event.code) {
+                case 'ArrowLeft':
+                case 'KeyA':
+                    keys.left = true;
+                    keys.a = true;
+                    break;
+                case 'ArrowRight':
+                case 'KeyD':
+                    keys.right = true;
+                    keys.d = true;
+                    break;
+                case 'ArrowUp':
+                case 'KeyW':
+                    keys.up = true;
+                    keys.w = true;
+                    break;
+                case 'ArrowDown':
+                case 'KeyS':
+                    keys.down = true;
+                    keys.s = true;
+                    break;
+            }
+            event.preventDefault();
+        });
+        
+        document.addEventListener('keyup', (event) => {
+            switch(event.code) {
+                case 'ArrowLeft':
+                case 'KeyA':
+                    keys.left = false;
+                    keys.a = false;
+                    break;
+                case 'ArrowRight':
+                case 'KeyD':
+                    keys.right = false;
+                    keys.d = false;
+                    break;
+                case 'ArrowUp':
+                case 'KeyW':
+                    keys.up = false;
+                    keys.w = false;
+                    break;
+                case 'ArrowDown':
+                case 'KeyS':
+                    keys.down = false;
+                    keys.s = false;
+                    break;
+            }
+            event.preventDefault();
+        });
+        
+        // Initialize game when page loads
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>

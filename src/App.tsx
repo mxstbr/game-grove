@@ -17,6 +17,8 @@ function App() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newGameName, setNewGameName] = useState("");
   const [creating, setCreating] = useState(false);
+  const [gameType, setGameType] = useState<"2d" | "3d" | null>(null);
+  const [createStep, setCreateStep] = useState<"type" | "name">("type");
   const [store, setStore] = useState<Store | null>(null);
   const [initializing, setInitializing] = useState(true);
 
@@ -71,6 +73,7 @@ function App() {
     if (!store || initializing) return;
     
     async function saveSelectedPath() {
+      if (!store) return; // Extra check to satisfy TypeScript
       try {
         await store.set('selected_games_path', selectedPath);
         await store.save(); // Ensure changes are persisted to disk
@@ -111,7 +114,7 @@ function App() {
   }
 
   async function createNewGame() {
-    if (!selectedPath || !newGameName.trim()) return;
+    if (!selectedPath || !newGameName.trim() || !gameType) return;
 
     const formattedName = formatGameNameForFilesystem(newGameName);
     
@@ -126,7 +129,8 @@ function App() {
       
       await invoke("create_game_folder", {
         parentPath: selectedPath,
-        folderName: formattedName
+        folderName: formattedName,
+        gameType: gameType
       });
 
       // Reload games list
@@ -138,6 +142,8 @@ function App() {
       // Reset modal state
       setShowCreateModal(false);
       setNewGameName("");
+      setGameType(null);
+      setCreateStep("type");
     } catch (err) {
       console.error("Error creating game folder:", err);
       setError(err instanceof Error ? err.message : "Failed to create game folder");
@@ -149,12 +155,16 @@ function App() {
   function handleCreateGameClick() {
     setShowCreateModal(true);
     setNewGameName("");
+    setGameType(null);
+    setCreateStep("type");
     setError(null);
   }
 
   function handleCancelCreate() {
     setShowCreateModal(false);
     setNewGameName("");
+    setGameType(null);
+    setCreateStep("type");
     setError(null);
   }
 
@@ -317,46 +327,97 @@ function App() {
       {showCreateModal && (
         <div className="modal-overlay" onClick={handleCancelCreate}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Create New Game</h2>
-            <input
-              type="text"
-              placeholder="Enter game name"
-              value={newGameName}
-              onChange={(e) => setNewGameName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !creating) {
-                  createNewGame();
-                } else if (e.key === 'Escape') {
-                  handleCancelCreate();
-                }
-              }}
-              autoFocus
-              className="game-name-input"
-            />
-            {newGameName && (
-              <p className="folder-preview">
-                Folder name: <strong>{formatGameNameForFilesystem(newGameName) || '...'}</strong>
-              </p>
+            {createStep === "type" ? (
+              <>
+                <h2>🎮 Choose Game Type</h2>
+                <p className="modal-description">What kind of game do you want to create?</p>
+                <div className="game-type-selection">
+                  <button
+                    className={`game-type-button ${gameType === "2d" ? "selected" : ""}`}
+                    onClick={() => {
+                      setGameType("2d");
+                      setCreateStep("name");
+                    }}
+                  >
+                    <div className="game-type-icon">🎲</div>
+                    <div className="game-type-title">2D Game</div>
+                    <div className="game-type-description">Perfect for side-scrollers, puzzle games, and classic arcade fun!</div>
+                  </button>
+                  <button
+                    className={`game-type-button ${gameType === "3d" ? "selected" : ""}`}
+                    onClick={() => {
+                      setGameType("3d");
+                      setCreateStep("name");
+                    }}
+                  >
+                    <div className="game-type-icon">🎯</div>
+                    <div className="game-type-title">3D Game</div>
+                    <div className="game-type-description">Great for adventures, exploration, and immersive experiences!</div>
+                  </button>
+                </div>
+                <div className="modal-buttons">
+                  <button
+                    onClick={handleCancelCreate}
+                    className="cancel-button"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h2>🚀 Name Your Game</h2>
+                <p className="modal-description">
+                  Creating a <strong>{gameType?.toUpperCase()} game</strong> - What should we call it?
+                </p>
+                <input
+                  type="text"
+                  placeholder="Enter game name"
+                  value={newGameName}
+                  onChange={(e) => setNewGameName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !creating && newGameName.trim()) {
+                      createNewGame();
+                    } else if (e.key === 'Escape') {
+                      handleCancelCreate();
+                    }
+                  }}
+                  autoFocus
+                  className="game-name-input"
+                />
+                {newGameName && (
+                  <p className="folder-preview">
+                    Folder name: <strong>{formatGameNameForFilesystem(newGameName) || '...'}</strong>
+                  </p>
+                )}
+                {error && (
+                  <p className="modal-error">{error}</p>
+                )}
+                <div className="modal-buttons">
+                  <button
+                    onClick={() => setCreateStep("type")}
+                    disabled={creating}
+                    className="back-button"
+                  >
+                    ← Back
+                  </button>
+                  <button
+                    onClick={handleCancelCreate}
+                    disabled={creating}
+                    className="cancel-button"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={createNewGame}
+                    disabled={creating || !newGameName.trim()}
+                    className="confirm-button"
+                  >
+                    {creating ? 'Creating...' : 'Create Game'}
+                  </button>
+                </div>
+              </>
             )}
-            {error && (
-              <p className="modal-error">{error}</p>
-            )}
-            <div className="modal-buttons">
-              <button
-                onClick={handleCancelCreate}
-                disabled={creating}
-                className="cancel-button"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={createNewGame}
-                disabled={creating || !newGameName.trim()}
-                className="confirm-button"
-              >
-                {creating ? 'Creating...' : 'Create'}
-              </button>
-            </div>
           </div>
         </div>
       )}

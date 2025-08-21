@@ -101,7 +101,7 @@ fn read_folders_from_path(folder_path: String) -> Result<Vec<FolderEntry>, Strin
 }
 
 #[tauri::command]
-fn create_game_folder(parent_path: String, folder_name: String) -> Result<String, String> {
+fn create_game_folder(parent_path: String, folder_name: String, game_type: String) -> Result<String, String> {
     let parent = PathBuf::from(&parent_path);
     
     // Check if parent directory exists
@@ -111,6 +111,11 @@ fn create_game_folder(parent_path: String, folder_name: String) -> Result<String
     
     if !parent.is_dir() {
         return Err(format!("Parent path is not a directory: {}", parent_path));
+    }
+    
+    // Validate game type
+    if game_type != "2d" && game_type != "3d" {
+        return Err(format!("Invalid game type: {}. Must be '2d' or '3d'", game_type));
     }
     
     // Create the full path for the new folder
@@ -125,7 +130,76 @@ fn create_game_folder(parent_path: String, folder_name: String) -> Result<String
     fs::create_dir(&new_folder_path)
         .map_err(|e| format!("Failed to create folder: {}", e))?;
     
+    // Copy boilerplate files
+    copy_boilerplate_files(&game_type, &new_folder_path)?;
+    
     Ok(new_folder_path.to_string_lossy().to_string())
+}
+
+fn copy_boilerplate_files(game_type: &str, target_path: &PathBuf) -> Result<(), String> {
+    // Get current working directory
+    let current_dir = std::env::current_dir()
+        .map_err(|e| format!("Failed to get current directory: {}", e))?;
+    
+    // Get the executable directory 
+    let exe_dir = std::env::current_exe()
+        .map_err(|e| format!("Failed to get executable directory: {}", e))?
+        .parent()
+        .ok_or("Failed to get parent directory of executable")?
+        .to_path_buf();
+    
+    // Look for boilerplate templates in various possible locations
+    let possible_source_dirs = vec![
+        // For development (from current working directory)
+        current_dir.join("src").join(format!("{}-game-boilerplate", game_type)),
+        // For development (from project root)
+        PathBuf::from("src").join(format!("{}-game-boilerplate", game_type)),
+        // For packaged app (relative to executable)
+        exe_dir.join("src").join(format!("{}-game-boilerplate", game_type)),
+        // For packaged app (go up from target/debug or similar)
+        exe_dir.parent().unwrap_or(&exe_dir).join("src").join(format!("{}-game-boilerplate", game_type)),
+        exe_dir.parent().unwrap_or(&exe_dir).parent().unwrap_or(&exe_dir).join("src").join(format!("{}-game-boilerplate", game_type)),
+        exe_dir.parent().unwrap_or(&exe_dir).parent().unwrap_or(&exe_dir).parent().unwrap_or(&exe_dir).join("src").join(format!("{}-game-boilerplate", game_type)),
+    ];
+    
+    let mut source_dir: Option<PathBuf> = None;
+    let mut checked_paths = Vec::new();
+    
+    for possible_dir in possible_source_dirs {
+        checked_paths.push(possible_dir.to_string_lossy().to_string());
+        if possible_dir.exists() && possible_dir.is_dir() {
+            source_dir = Some(possible_dir);
+            break;
+        }
+    }
+    
+    let source_dir = source_dir.ok_or_else(|| format!(
+        "Could not find {}-game-boilerplate directory. Checked paths: {}", 
+        game_type,
+        checked_paths.join(", ")
+    ))?;
+    
+    // Copy all files from the boilerplate directory to the target
+    copy_dir_contents(&source_dir, target_path)
+        .map_err(|e| format!("Failed to copy boilerplate files: {}", e))
+}
+
+fn copy_dir_contents(source: &PathBuf, target: &PathBuf) -> Result<(), std::io::Error> {
+    for entry in fs::read_dir(source)? {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        let source_path = entry.path();
+        let file_name = entry.file_name();
+        let target_path = target.join(file_name);
+        
+        if file_type.is_file() {
+            fs::copy(&source_path, &target_path)?;
+        } else if file_type.is_dir() {
+            fs::create_dir(&target_path)?;
+            copy_dir_contents(&source_path, &target_path)?;
+        }
+    }
+    Ok(())
 }
 
 #[tauri::command]

@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Game Boilerplate</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            background: #000;
+            overflow: hidden;
+            color: white;
+        }
+        
+        canvas {
+            display: block;
+        }
+        
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #333;
+        }
+        
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #333;
+        }
+        
+        .score {
+            font-size: 18px;
+            margin-bottom: 10px;
+            color: #00ff00;
+        }
+        
+        .controls-text {
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        
+        .game-title {
+            font-size: 24px;
+            margin-bottom: 10px;
+            color: #ffff00;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+        }
+        
+        #gameOver {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 200;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 30px;
+            border-radius: 12px;
+            border: 2px solid #ff6600;
+            text-align: center;
+            display: none;
+        }
+        
+        .restart-btn {
+            background: #00ff00;
+            color: black;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 15px;
+        }
+        
+        .restart-btn:hover {
+            background: #00cc00;
+        }
+    </style>
+</head>
+<body>
+    <div id="ui">
+        <div class="game-title">Cube Collector 3D</div>
+        <div class="score">Score: <span id="score">0</span></div>
+        <div class="score">Time: <span id="timer">60</span>s</div>
+    </div>
+    
+    <div id="controls">
+        <div class="controls-text">
+            <strong>Controls:</strong><br>
+            WASD - Move<br>
+            Mouse - Look around<br>
+            Collect all yellow cubes!
+        </div>
+    </div>
+    
+    <div id="gameOver">
+        <h2>Game Over!</h2>
+        <p>Final Score: <span id="finalScore">0</span></p>
+        <button class="restart-btn" onclick="restartGame()">Play Again</button>
+    </div>
+
+    <!-- Three.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <script>
+        // Game variables
+        let scene, camera, renderer, player, collectibles = [], gameTime = 60;
+        let score = 0, gameRunning = true;
+        let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
+        let raycaster, mouse;
+        let cameraAngleX = 0, cameraAngleY = 0;
+        
+        // Initialize the game
+        function init() {
+            // Create scene
+            scene = new THREE.Scene();
+            scene.fog = new THREE.Fog(0x000000, 0, 75);
+            
+            // Create camera
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 5, 10);
+            
+            // Create renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            document.body.appendChild(renderer.domElement);
+            
+            // Add lighting
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.3);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(10, 20, 5);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 2048;
+            directionalLight.shadow.mapSize.height = 2048;
+            scene.add(directionalLight);
+            
+            // Create ground
+            const groundGeometry = new THREE.PlaneGeometry(50, 50);
+            const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x228B22 });
+            const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+            
+            // Create player
+            createPlayer();
+            
+            // Create collectibles
+            createCollectibles();
+            
+            // Create some environment objects
+            createEnvironment();
+            
+            // Setup controls
+            setupControls();
+            
+            // Setup raycaster for mouse interaction
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+            
+            // Start game loop
+            gameLoop();
+            startTimer();
+        }
+        
+        function createPlayer() {
+            const playerGeometry = new THREE.BoxGeometry(1, 1, 1);
+            const playerMaterial = new THREE.MeshLambertMaterial({ color: 0x0066ff });
+            player = new THREE.Mesh(playerGeometry, playerMaterial);
+            player.position.set(0, 0.5, 0);
+            player.castShadow = true;
+            scene.add(player);
+        }
+        
+        function createCollectibles() {
+            for (let i = 0; i < 10; i++) {
+                const collectibleGeometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+                const collectibleMaterial = new THREE.MeshLambertMaterial({ color: 0xffff00 });
+                const collectible = new THREE.Mesh(collectibleGeometry, collectibleMaterial);
+                
+                // Random position
+                collectible.position.set(
+                    (Math.random() - 0.5) * 40,
+                    0.25,
+                    (Math.random() - 0.5) * 40
+                );
+                collectible.castShadow = true;
+                collectible.userData = { isCollectible: true };
+                
+                collectibles.push(collectible);
+                scene.add(collectible);
+            }
+        }
+        
+        function createEnvironment() {
+            // Create some trees (green cones)
+            for (let i = 0; i < 15; i++) {
+                const treeGeometry = new THREE.ConeGeometry(1, 3, 8);
+                const treeMaterial = new THREE.MeshLambertMaterial({ color: 0x006400 });
+                const tree = new THREE.Mesh(treeGeometry, treeMaterial);
+                
+                tree.position.set(
+                    (Math.random() - 0.5) * 45,
+                    1.5,
+                    (Math.random() - 0.5) * 45
+                );
+                tree.castShadow = true;
+                scene.add(tree);
+            }
+            
+            // Create some rocks (gray spheres)
+            for (let i = 0; i < 8; i++) {
+                const rockGeometry = new THREE.SphereGeometry(0.8, 8, 6);
+                const rockMaterial = new THREE.MeshLambertMaterial({ color: 0x696969 });
+                const rock = new THREE.Mesh(rockGeometry, rockMaterial);
+                
+                rock.position.set(
+                    (Math.random() - 0.5) * 45,
+                    0.4,
+                    (Math.random() - 0.5) * 45
+                );
+                rock.castShadow = true;
+                scene.add(rock);
+            }
+        }
+        
+        function setupControls() {
+            // Keyboard controls
+            document.addEventListener('keydown', (event) => {
+                if (!gameRunning) return;
+                
+                switch (event.key.toLowerCase()) {
+                    case 'w':
+                        moveForward = true;
+                        break;
+                    case 's':
+                        moveBackward = true;
+                        break;
+                    case 'a':
+                        moveLeft = true;
+                        break;
+                    case 'd':
+                        moveRight = true;
+                        break;
+                }
+            });
+            
+            document.addEventListener('keyup', (event) => {
+                switch (event.key.toLowerCase()) {
+                    case 'w':
+                        moveForward = false;
+                        break;
+                    case 's':
+                        moveBackward = false;
+                        break;
+                    case 'a':
+                        moveLeft = false;
+                        break;
+                    case 'd':
+                        moveRight = false;
+                        break;
+                }
+            });
+            
+            // Mouse controls for camera
+            let isMouseDown = false;
+            
+            document.addEventListener('mousedown', () => {
+                isMouseDown = true;
+            });
+            
+            document.addEventListener('mouseup', () => {
+                isMouseDown = false;
+            });
+            
+            document.addEventListener('mousemove', (event) => {
+                if (!isMouseDown || !gameRunning) return;
+                
+                cameraAngleY -= event.movementX * 0.003;
+                cameraAngleX -= event.movementY * 0.003;
+                cameraAngleX = Math.max(-Math.PI/3, Math.min(Math.PI/3, cameraAngleX));
+            });
+            
+            // Handle window resize
+            window.addEventListener('resize', onWindowResize);
+        }
+        
+        function gameLoop() {
+            if (!gameRunning) return;
+            
+            requestAnimationFrame(gameLoop);
+            
+            // Update player movement
+            updatePlayer();
+            
+            // Update camera
+            updateCamera();
+            
+            // Rotate collectibles
+            collectibles.forEach(collectible => {
+                collectible.rotation.y += 0.02;
+                collectible.rotation.x += 0.01;
+            });
+            
+            // Check collisions
+            checkCollisions();
+            
+            // Render
+            renderer.render(scene, camera);
+        }
+        
+        function updatePlayer() {
+            const speed = 0.2;
+            
+            if (moveForward) {
+                player.position.x -= Math.sin(cameraAngleY) * speed;
+                player.position.z -= Math.cos(cameraAngleY) * speed;
+            }
+            if (moveBackward) {
+                player.position.x += Math.sin(cameraAngleY) * speed;
+                player.position.z += Math.cos(cameraAngleY) * speed;
+            }
+            if (moveLeft) {
+                player.position.x -= Math.cos(cameraAngleY) * speed;
+                player.position.z += Math.sin(cameraAngleY) * speed;
+            }
+            if (moveRight) {
+                player.position.x += Math.cos(cameraAngleY) * speed;
+                player.position.z -= Math.sin(cameraAngleY) * speed;
+            }
+            
+            // Keep player within bounds
+            player.position.x = Math.max(-24, Math.min(24, player.position.x));
+            player.position.z = Math.max(-24, Math.min(24, player.position.z));
+        }
+        
+        function updateCamera() {
+            const cameraDistance = 8;
+            camera.position.x = player.position.x + Math.sin(cameraAngleY) * Math.cos(cameraAngleX) * cameraDistance;
+            camera.position.y = player.position.y + Math.sin(cameraAngleX) * cameraDistance + 3;
+            camera.position.z = player.position.z + Math.cos(cameraAngleY) * Math.cos(cameraAngleX) * cameraDistance;
+            
+            camera.lookAt(player.position);
+        }
+        
+        function checkCollisions() {
+            collectibles.forEach((collectible, index) => {
+                const distance = player.position.distanceTo(collectible.position);
+                if (distance < 1.2) {
+                    // Collect the item
+                    scene.remove(collectible);
+                    collectibles.splice(index, 1);
+                    score += 10;
+                    document.getElementById('score').textContent = score;
+                    
+                    // Check win condition
+                    if (collectibles.length === 0) {
+                        endGame(true);
+                    }
+                }
+            });
+        }
+        
+        function startTimer() {
+            const timerInterval = setInterval(() => {
+                if (!gameRunning) {
+                    clearInterval(timerInterval);
+                    return;
+                }
+                
+                gameTime--;
+                document.getElementById('timer').textContent = gameTime;
+                
+                if (gameTime <= 0) {
+                    clearInterval(timerInterval);
+                    endGame(false);
+                }
+            }, 1000);
+        }
+        
+        function endGame(won) {
+            gameRunning = false;
+            const gameOverDiv = document.getElementById('gameOver');
+            const finalScore = document.getElementById('finalScore');
+            
+            finalScore.textContent = score;
+            
+            if (won) {
+                gameOverDiv.innerHTML = `
+                    <h2 style="color: #00ff00;">You Win!</h2>
+                    <p>Congratulations! You collected all cubes!</p>
+                    <p>Final Score: ${score}</p>
+                    <button class="restart-btn" onclick="restartGame()">Play Again</button>
+                `;
+            } else {
+                gameOverDiv.innerHTML = `
+                    <h2 style="color: #ff6600;">Time's Up!</h2>
+                    <p>You collected ${score/10} out of 10 cubes.</p>
+                    <p>Final Score: ${score}</p>
+                    <button class="restart-btn" onclick="restartGame()">Play Again</button>
+                `;
+            }
+            
+            gameOverDiv.style.display = 'block';
+        }
+        
+        function restartGame() {
+            // Reset game state
+            score = 0;
+            gameTime = 60;
+            gameRunning = true;
+            
+            // Reset UI
+            document.getElementById('score').textContent = score;
+            document.getElementById('timer').textContent = gameTime;
+            document.getElementById('gameOver').style.display = 'none';
+            
+            // Reset player position
+            player.position.set(0, 0.5, 0);
+            
+            // Reset camera angles
+            cameraAngleX = 0;
+            cameraAngleY = 0;
+            
+            // Remove old collectibles
+            collectibles.forEach(collectible => scene.remove(collectible));
+            collectibles = [];
+            
+            // Create new collectibles
+            createCollectibles();
+            
+            // Restart game loop and timer
+            gameLoop();
+            startTimer();
+        }
+        
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        
+        // Start the game when the page loads
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
