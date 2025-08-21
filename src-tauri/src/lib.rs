@@ -4,6 +4,9 @@ use std::process::Command;
 use serde::Serialize;
 use tauri_plugin_store::StoreExt;
 use serde_json::json;
+use tauri::AppHandle;
+
+mod menu;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -343,14 +346,55 @@ fn open_html_in_browser(folder_path: String) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+async fn check_for_updates_manually(app_handle: AppHandle) -> Result<String, String> {
+    #[cfg(desktop)]
+    {
+        use tauri_plugin_updater::UpdaterExt;
+        
+        match app_handle.updater() {
+            Ok(updater) => {
+                match updater.check().await {
+                    Ok(update) => {
+                        if let Some(update) = update {
+                            return Ok(format!("Update available: {}", update.version));
+                        } else {
+                            return Ok("No updates available. You're running the latest version!".to_string());
+                        }
+                    }
+                    Err(e) => {
+                        return Err(format!("Failed to check for updates: {}", e));
+                    }
+                }
+            }
+            Err(e) => {
+                return Err(format!("Failed to get updater: {}", e));
+            }
+        }
+    }
+    
+    #[cfg(not(desktop))]
+    return Err("Update checking is not supported on this platform".to_string());
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .on_menu_event(|app, event| {
+            let app_handle = app.clone();
+            tauri::async_runtime::spawn(async move {
+                menu::handle_menu_event(&app_handle, event).await;
+            });
+        })
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
+            // Create and set the menu
+            let menu = menu::create_menu(&app.handle())?;
+            app.set_menu(menu)?;
+            
             // Initialize the store
             let store = app.store("app_settings.json")?;
             
@@ -367,7 +411,8 @@ pub fn run() {
             read_folders_from_path, 
             create_game_folder,
             open_in_cursor,
-            open_html_in_browser
+            open_html_in_browser,
+            check_for_updates_manually
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
