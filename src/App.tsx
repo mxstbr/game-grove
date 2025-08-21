@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
+import { Store } from "@tauri-apps/plugin-store";
 import "./App.css";
 
 interface GameEntry {
@@ -16,6 +17,30 @@ function App() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newGameName, setNewGameName] = useState("");
   const [creating, setCreating] = useState(false);
+  const [store, setStore] = useState<Store | null>(null);
+  const [initializing, setInitializing] = useState(true);
+
+  // Initialize store and load saved path on mount
+  useEffect(() => {
+    async function initializeStore() {
+      try {
+        const appStore = await Store.load('app_settings.json');
+        setStore(appStore);
+        
+        // Load saved path from store
+        const savedPath = await appStore.get<string>('selected_games_path');
+        if (savedPath) {
+          setSelectedPath(savedPath);
+        }
+      } catch (err) {
+        console.error('Failed to initialize store:', err);
+      } finally {
+        setInitializing(false);
+      }
+    }
+    
+    initializeStore();
+  }, []);
 
   // Load games when selected path changes
   useEffect(() => {
@@ -40,6 +65,22 @@ function App() {
 
     loadGames();
   }, [selectedPath]);
+
+  // Save selected path to store whenever it changes
+  useEffect(() => {
+    if (!store || initializing) return;
+    
+    async function saveSelectedPath() {
+      try {
+        await store.set('selected_games_path', selectedPath);
+        await store.save(); // Ensure changes are persisted to disk
+      } catch (err) {
+        console.error('Failed to save selected path:', err);
+      }
+    }
+    
+    saveSelectedPath();
+  }, [selectedPath, store, initializing]);
 
   async function selectGamesFolder() {
     try {
@@ -115,6 +156,36 @@ function App() {
     setShowCreateModal(false);
     setNewGameName("");
     setError(null);
+  }
+
+  async function openInCursor(gamePath: string) {
+    try {
+      await invoke("open_in_cursor", { folderPath: gamePath });
+    } catch (err) {
+      console.error("Error opening in Cursor:", err);
+      setError(err instanceof Error ? err.message : "Failed to open in Cursor");
+    }
+  }
+
+  async function openInBrowser(gamePath: string) {
+    try {
+      await invoke("open_html_in_browser", { folderPath: gamePath });
+    } catch (err) {
+      console.error("Error opening in browser:", err);
+      setError(err instanceof Error ? err.message : "Failed to open in browser");
+    }
+  }
+
+  // Show loading state while initializing
+  if (initializing) {
+    return (
+      <main className="container">
+        <div className="loading">
+          <span className="loading-icon">⏳</span>
+          <p>Loading Game Grove...</p>
+        </div>
+      </main>
+    );
   }
 
   return (
@@ -214,6 +285,24 @@ function App() {
                       </div>
                       <div className="game-path">
                         {game.path}
+                      </div>
+                      <div className="game-actions">
+                        <button
+                          className="action-button cursor-button"
+                          onClick={() => openInCursor(game.path)}
+                          title="Open in Cursor"
+                        >
+                          <span className="button-icon">💻</span>
+                          Cursor
+                        </button>
+                        <button
+                          className="action-button browser-button"
+                          onClick={() => openInBrowser(game.path)}
+                          title="Open in Browser"
+                        >
+                          <span className="button-icon">🌐</span>
+                          Browser
+                        </button>
                       </div>
                     </div>
                   ))}
