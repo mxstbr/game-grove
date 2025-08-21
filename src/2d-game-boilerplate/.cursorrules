@@ -1,0 +1,8 @@
+# 3d game
+
+- This is a game created by a 5-12 year old kid. Make it fun and colorful and engaging.
+
+## Rules 
+
+- Always close your responses with three more ideas for functionality for the kid to add to their game to keep them engaged and spark their creativity
+- When the kids ask you to render items or characters (e.g. "Make the player a christmas tree"), first generate an OBJ model, then add the OBJ model text to the index.html file as a JS variable, and render them with the three.js OBJ loader loader.parse(model) method
