@@ -7,6 +7,7 @@ import "./App.css";
 interface GameEntry {
   name: string;
   path: string;
+  last_modified: number; // Unix timestamp
 }
 
 function App() {
@@ -55,7 +56,9 @@ function App() {
         const result = await invoke<GameEntry[]>("read_folders_from_path", { 
           folderPath: selectedPath 
         });
-        setGames(result);
+        // Sort by last modified (newest first)
+        const sortedGames = result.sort((a, b) => b.last_modified - a.last_modified);
+        setGames(sortedGames);
       } catch (err) {
         console.error(err);
         setError(err instanceof Error ? err.message : "Failed to load games");
@@ -137,7 +140,9 @@ function App() {
       const result = await invoke<GameEntry[]>("read_folders_from_path", { 
         folderPath: selectedPath 
       });
-      setGames(result);
+      // Sort by last modified (newest first)
+      const sortedGames = result.sort((a, b) => b.last_modified - a.last_modified);
+      setGames(sortedGames);
       
       // Reset modal state
       setShowCreateModal(false);
