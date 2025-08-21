@@ -1,0 +1,7 @@
+- [x] Sort games on overview page by last modified
+- [ ] Fuzzy search for games on overview page based on game name first, then game index.html content second
+- [ ] Change overview page to only show list of games, then click on game to see "Browser" and "Cursor" button (to set up for more actions later)
+- [ ] Auto updater with Tauri's updater plugin. Host update files on GitHub via Tauri updater GitHub Action so it's all fully automated on every push.
+- [ ] For each game, have a "text-to-3d-model" input that uses some 3d model AI API to generate 3d models that can then be used in the game
+  - [ ] Add ability to iterate on models with text if the result isn't quite what the user expected
+- [ ] 

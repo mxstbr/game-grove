@@ -15,6 +15,7 @@ fn greet(name: &str) -> String {
 struct FolderEntry {
     name: String,
     path: String,
+    last_modified: u64, // Unix timestamp
 }
 
 #[tauri::command]
@@ -43,9 +44,23 @@ fn read_src_folders() -> Result<Vec<FolderEntry>, String> {
             if path.is_dir() {
                 if let Some(name) = path.file_name() {
                     if let Some(name_str) = name.to_str() {
+                        // Get last modified timestamp
+                        let last_modified = match fs::metadata(&path) {
+                            Ok(metadata) => {
+                                match metadata.modified() {
+                                    Ok(time) => time.duration_since(std::time::UNIX_EPOCH)
+                                        .unwrap_or_default()
+                                        .as_secs(),
+                                    Err(_) => 0,
+                                }
+                            },
+                            Err(_) => 0,
+                        };
+                        
                         folders.push(FolderEntry {
                             name: name_str.to_string(),
                             path: path.to_string_lossy().to_string(),
+                            last_modified,
                         });
                     }
                 }
@@ -53,8 +68,8 @@ fn read_src_folders() -> Result<Vec<FolderEntry>, String> {
         }
     }
     
-    // Sort folders alphabetically
-    folders.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    // Sort folders by last modified (newest first)
+    folders.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
     
     Ok(folders)
 }
@@ -84,9 +99,23 @@ fn read_folders_from_path(folder_path: String) -> Result<Vec<FolderEntry>, Strin
             if path.is_dir() {
                 if let Some(name) = path.file_name() {
                     if let Some(name_str) = name.to_str() {
+                        // Get last modified timestamp
+                        let last_modified = match fs::metadata(&path) {
+                            Ok(metadata) => {
+                                match metadata.modified() {
+                                    Ok(time) => time.duration_since(std::time::UNIX_EPOCH)
+                                        .unwrap_or_default()
+                                        .as_secs(),
+                                    Err(_) => 0,
+                                }
+                            },
+                            Err(_) => 0,
+                        };
+                        
                         folders.push(FolderEntry {
                             name: name_str.to_string(),
                             path: path.to_string_lossy().to_string(),
+                            last_modified,
                         });
                     }
                 }
@@ -94,8 +123,8 @@ fn read_folders_from_path(folder_path: String) -> Result<Vec<FolderEntry>, Strin
         }
     }
     
-    // Sort folders alphabetically
-    folders.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    // Sort folders by last modified (newest first)
+    folders.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
     
     Ok(folders)
 }
@@ -320,6 +349,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             // Initialize the store
             let store = app.store("app_settings.json")?;

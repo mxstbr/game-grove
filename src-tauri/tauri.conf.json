@@ -31,5 +31,14 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/mxstbr/game-grove/releases/latest/download/latest.json"
+      ],
+      "dialog": true,
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDU5RUI1NEQ2QTU0N0FFMkMKUldRc3JrZWwxbFRyV2ZsTTg1dFA0T1duTHBSd210WXlOejUwU3NhdEhCcDVQVFA1WFQvZXJNM0IK"
+    }
   }
 }

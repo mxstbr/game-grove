@@ -7,3 +7,4 @@
 
 - This is a Tauri app that renders a React + TypeScript frontend
 - Use the context7 MCP server to fetch library documentation where necessary
+- Use pnpm for dependencies

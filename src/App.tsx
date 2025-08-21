@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Store } from "@tauri-apps/plugin-store";
+import { check } from "@tauri-apps/plugin-updater";
 import "./App.css";
 
 interface GameEntry {
@@ -22,6 +23,11 @@ function App() {
   const [createStep, setCreateStep] = useState<"type" | "name">("type");
   const [store, setStore] = useState<Store | null>(null);
   const [initializing, setInitializing] = useState(true);
+  const [selectedGame, setSelectedGame] = useState<GameEntry | null>(null);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState<any>(null);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   // Initialize store and load saved path on mount
   useEffect(() => {
@@ -44,6 +50,62 @@ function App() {
     
     initializeStore();
   }, []);
+
+  // Check for updates on app start
+  useEffect(() => {
+    async function checkForUpdates() {
+      try {
+        setCheckingUpdate(true);
+        const update = await check();
+        if (update?.available) {
+          setUpdateAvailable(true);
+          setUpdateInfo(update);
+          console.log('Update available:', update.version);
+        }
+      } catch (error) {
+        console.error('Failed to check for updates:', error);
+      } finally {
+        setCheckingUpdate(false);
+      }
+    }
+
+    // Check for updates after initialization
+    if (!initializing) {
+      checkForUpdates();
+    }
+  }, [initializing]);
+
+  // Handle update installation
+  async function handleUpdate() {
+    if (!updateInfo) return;
+    
+    try {
+      setDownloading(true);
+      console.log('Downloading and installing update...');
+      
+      // Download and install the update
+      await updateInfo.downloadAndInstall((event: any) => {
+        switch (event.event) {
+          case 'Started':
+            console.log('Update download started');
+            break;
+          case 'Progress':
+            console.log(`Download progress: ${event.data.chunkLength} bytes`);
+            break;
+          case 'Finished':
+            console.log('Update download finished');
+            break;
+        }
+      });
+
+      // Restart the app to apply the update
+      console.log('Restarting application...');
+      
+    } catch (error) {
+      console.error('Failed to install update:', error);
+      setDownloading(false);
+    }
+  }
 
   // Load games when selected path changes
   useEffect(() => {
@@ -233,6 +295,42 @@ function App() {
         <p className="subtitle">Your awesome game collection!</p>
       </div>
 
+      {/* Update notification */}
+      {updateAvailable && (
+        <div className="update-notification">
+          <div className="update-content">
+            <span className="update-icon">🔄</span>
+            <div className="update-text">
+              <strong>Update Available!</strong>
+              <p>Version {updateInfo?.version} is ready to install.</p>
+            </div>
+            <div className="update-actions">
+              <button 
+                onClick={handleUpdate} 
+                disabled={downloading}
+                className="update-button"
+              >
+                {downloading ? "Installing..." : "Update Now"}
+              </button>
+              <button 
+                onClick={() => setUpdateAvailable(false)}
+                className="dismiss-button"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Update checking indicator */}
+      {checkingUpdate && (
+        <div className="checking-update">
+          <span className="checking-icon">🔍</span>
+          <span>Checking for updates...</span>
+        </div>
+      )}
+
       <div className="games-section">
         {!selectedPath ? (
           <div className="welcome-section">
@@ -273,7 +371,7 @@ function App() {
               </div>
             )}
             
-            {!loading && !error && games.length > 0 && (
+            {!loading && !error && games.length > 0 && !selectedGame && (
               <div className="games-container">
                 <div className="games-info">
                   <h2 className="games-title">
@@ -287,10 +385,11 @@ function App() {
                   {games.map((game, index) => (
                     <div 
                       key={game.path} 
-                      className="game-card"
+                      className="game-card clickable"
                       style={{
                         animationDelay: `${index * 0.05}s`
                       }}
+                      onClick={() => setSelectedGame(game)}
                     >
                       <div className="game-icon-large">
                         {getGameIcon(index)}
@@ -301,26 +400,54 @@ function App() {
                       <div className="game-path">
                         {game.path}
                       </div>
-                      <div className="game-actions">
-                        <button
-                          className="action-button cursor-button"
-                          onClick={() => openInCursor(game.path)}
-                          title="Open in Cursor"
-                        >
-                          <span className="button-icon">💻</span>
-                          Cursor
-                        </button>
-                        <button
-                          className="action-button browser-button"
-                          onClick={() => openInBrowser(game.path)}
-                          title="Open in Browser"
-                        >
-                          <span className="button-icon">🌐</span>
-                          Browser
-                        </button>
-                      </div>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {!loading && !error && selectedGame && (
+              <div className="game-detail">
+                <div className="game-detail-header">
+                  <button 
+                    className="back-button"
+                    onClick={() => setSelectedGame(null)}
+                    title="Back to games list"
+                  >
+                    ← Back
+                  </button>
+                  <h2 className="game-detail-title">
+                    <span className="game-icon-large">
+                      {getGameIcon(games.findIndex(g => g.path === selectedGame.path))}
+                    </span>
+                    {selectedGame.name}
+                  </h2>
+                </div>
+                <div className="game-detail-info">
+                  <div className="game-detail-path">
+                    📂 {selectedGame.path}
+                  </div>
+                  <div className="game-detail-modified">
+                    🕒 Last modified: {new Date(selectedGame.last_modified * 1000).toLocaleString()}
+                  </div>
+                </div>
+                <div className="game-detail-actions">
+                  <button
+                    className="action-button browser-button"
+                    onClick={() => openInBrowser(selectedGame.path)}
+                    title="Open in Browser"
+                  >
+                    <span className="button-icon">🌐</span>
+                    Browser
+                  </button>
+                  <button
+                    className="action-button cursor-button"
+                    onClick={() => openInCursor(selectedGame.path)}
+                    title="Open in Cursor"
+                  >
+                    <span className="button-icon">💻</span>
+                    Cursor
+                  </button>
                 </div>
               </div>
             )}

@@ -483,12 +483,15 @@
   border-radius: 20px;
   padding: 1.5rem;
   text-align: center;
-  cursor: pointer;
   transition: all 0.3s ease;
   box-shadow: 0 5px 15px rgba(0,0,0,0.1);
   animation: popIn 0.5s ease backwards;
   position: relative;
   overflow: hidden;
+}
+
+.game-card.clickable {
+  cursor: pointer;
 }
 
 .game-card:before {
@@ -597,6 +600,70 @@
 .browser-button:hover {
   background: linear-gradient(135deg, #00d2ff 0%, #3a7bd5 100%);
   color: white;
+}
+
+/* Game Detail View Styles */
+.game-detail {
+  animation: slideUp 0.5s ease;
+  padding: 1rem;
+}
+
+.game-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.game-detail-title {
+  font-size: 2.5rem;
+  color: #5f27cd;
+  margin: 0;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex: 1;
+}
+
+.game-detail-title .game-icon-large {
+  font-size: 3rem;
+  margin: 0;
+  filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.2));
+}
+
+.game-detail-info {
+  background: #f8f9fa;
+  border-radius: 16px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.game-detail-path {
+  font-size: 1rem;
+  color: #636e72;
+  font-family: monospace;
+  margin-bottom: 0.5rem;
+  word-break: break-all;
+}
+
+.game-detail-modified {
+  font-size: 0.9rem;
+  color: #95afc0;
+}
+
+.game-detail-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.game-detail-actions .action-button {
+  padding: 1rem 2rem;
+  font-size: 1.1rem;
+  border-radius: 16px;
+  min-width: 120px;
+  justify-content: center;
 }
 
 /* Animations */
@@ -752,5 +819,165 @@
   .action-button {
     font-size: 0.75rem;
     padding: 0.4rem 0.6rem;
+  }
+  
+  /* Game detail mobile styles */
+  .game-detail-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  
+  .game-detail-title {
+    font-size: 2rem;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  
+  .game-detail-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .game-detail-actions .action-button {
+    padding: 0.8rem 1rem;
+    font-size: 1rem;
+    min-width: unset;
+  }
+}
+
+/* Update notification styles */
+.update-notification {
+  width: 100%;
+  max-width: 800px;
+  margin-bottom: 1.5rem;
+  background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+  border-radius: 12px;
+  padding: 1rem 1.5rem;
+  box-shadow: 0 8px 32px rgba(34, 197, 94, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  animation: slideDown 0.5s ease;
+}
+
+.update-content {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  color: white;
+}
+
+.update-icon {
+  font-size: 1.5rem;
+  animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.update-text {
+  flex: 1;
+}
+
+.update-text strong {
+  font-size: 1.1rem;
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.update-text p {
+  font-size: 0.9rem;
+  opacity: 0.9;
+  margin: 0;
+}
+
+.update-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.update-button {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.update-button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.update-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.dismiss-button {
+  background: transparent;
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.dismiss-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.checking-update {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  color: white;
+  font-size: 0.9rem;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.checking-icon {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Mobile responsiveness for update notification */
+@media (max-width: 768px) {
+  .update-notification {
+    margin: 0 -1rem 1.5rem -1rem;
+    border-radius: 0;
+  }
+  
+  .update-content {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+  
+  .update-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+  
+  .update-button,
+  .dismiss-button {
+    flex: 1;
   }
 }
