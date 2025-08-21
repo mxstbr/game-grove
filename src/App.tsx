@@ -13,6 +13,9 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newGameName, setNewGameName] = useState("");
+  const [creating, setCreating] = useState(false);
 
   // Load games when selected path changes
   useEffect(() => {
@@ -55,16 +58,84 @@ function App() {
     }
   }
 
+  // Convert game name to filesystem-friendly format
+  function formatGameNameForFilesystem(name: string): string {
+    return name
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9\s-]/g, '') // Remove special characters except spaces and hyphens
+      .replace(/\s+/g, '-')         // Replace spaces with hyphens
+      .replace(/-+/g, '-')          // Replace multiple hyphens with single hyphen
+      .replace(/^-+|-+$/g, '');     // Remove leading/trailing hyphens
+  }
+
+  async function createNewGame() {
+    if (!selectedPath || !newGameName.trim()) return;
+
+    const formattedName = formatGameNameForFilesystem(newGameName);
+    
+    if (!formattedName) {
+      setError("Please enter a valid game name");
+      return;
+    }
+
+    try {
+      setCreating(true);
+      setError(null);
+      
+      await invoke("create_game_folder", {
+        parentPath: selectedPath,
+        folderName: formattedName
+      });
+
+      // Reload games list
+      const result = await invoke<GameEntry[]>("read_folders_from_path", { 
+        folderPath: selectedPath 
+      });
+      setGames(result);
+      
+      // Reset modal state
+      setShowCreateModal(false);
+      setNewGameName("");
+    } catch (err) {
+      console.error("Error creating game folder:", err);
+      setError(err instanceof Error ? err.message : "Failed to create game folder");
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  function handleCreateGameClick() {
+    setShowCreateModal(true);
+    setNewGameName("");
+    setError(null);
+  }
+
+  function handleCancelCreate() {
+    setShowCreateModal(false);
+    setNewGameName("");
+    setError(null);
+  }
+
   return (
     <main className="container">
       {selectedPath && (
-        <button 
-          onClick={selectGamesFolder}
-          className="settings-button"
-          title="Change games folder"
-        >
-          ⚙️
-        </button>
+        <>
+          <button 
+            onClick={selectGamesFolder}
+            className="settings-button"
+            title="Change games folder"
+          >
+            ⚙️
+          </button>
+          <button
+            onClick={handleCreateGameClick}
+            className="create-button"
+            title="Create new game"
+          >
+            ➕ New Game
+          </button>
+        </>
       )}
       
       <div className="header">
@@ -152,6 +223,54 @@ function App() {
           </>
         )}
       </div>
+
+      {/* Create Game Modal */}
+      {showCreateModal && (
+        <div className="modal-overlay" onClick={handleCancelCreate}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Create New Game</h2>
+            <input
+              type="text"
+              placeholder="Enter game name"
+              value={newGameName}
+              onChange={(e) => setNewGameName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !creating) {
+                  createNewGame();
+                } else if (e.key === 'Escape') {
+                  handleCancelCreate();
+                }
+              }}
+              autoFocus
+              className="game-name-input"
+            />
+            {newGameName && (
+              <p className="folder-preview">
+                Folder name: <strong>{formatGameNameForFilesystem(newGameName) || '...'}</strong>
+              </p>
+            )}
+            {error && (
+              <p className="modal-error">{error}</p>
+            )}
+            <div className="modal-buttons">
+              <button
+                onClick={handleCancelCreate}
+                disabled={creating}
+                className="cancel-button"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={createNewGame}
+                disabled={creating || !newGameName.trim()}
+                className="confirm-button"
+              >
+                {creating ? 'Creating...' : 'Create'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

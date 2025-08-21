@@ -97,12 +97,40 @@ fn read_folders_from_path(folder_path: String) -> Result<Vec<FolderEntry>, Strin
     Ok(folders)
 }
 
+#[tauri::command]
+fn create_game_folder(parent_path: String, folder_name: String) -> Result<String, String> {
+    let parent = PathBuf::from(&parent_path);
+    
+    // Check if parent directory exists
+    if !parent.exists() {
+        return Err(format!("Parent directory does not exist: {}", parent_path));
+    }
+    
+    if !parent.is_dir() {
+        return Err(format!("Parent path is not a directory: {}", parent_path));
+    }
+    
+    // Create the full path for the new folder
+    let new_folder_path = parent.join(&folder_name);
+    
+    // Check if folder already exists
+    if new_folder_path.exists() {
+        return Err(format!("Folder already exists: {}", folder_name));
+    }
+    
+    // Create the directory
+    fs::create_dir(&new_folder_path)
+        .map_err(|e| format!("Failed to create folder: {}", e))?;
+    
+    Ok(new_folder_path.to_string_lossy().to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![greet, read_src_folders, read_folders_from_path])
+        .invoke_handler(tauri::generate_handler![greet, read_src_folders, read_folders_from_path, create_game_folder])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
