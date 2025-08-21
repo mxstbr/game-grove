@@ -57,6 +57,16 @@ function App() {
 
   return (
     <main className="container">
+      {selectedPath && (
+        <button 
+          onClick={selectGamesFolder}
+          className="settings-button"
+          title="Change games folder"
+        >
+          ⚙️
+        </button>
+      )}
+      
       <div className="header">
         <h1 className="title">
           <span className="game-icon">🎮</span>
@@ -83,18 +93,6 @@ function App() {
           </div>
         ) : (
           <>
-            <div className="games-header">
-              <div className="selected-path">
-                <strong>🏠 Games Home:</strong>
-                <span className="path-text">{selectedPath}</span>
-              </div>
-              <button 
-                onClick={selectGamesFolder}
-                className="change-folder-button"
-              >
-                Change Folder
-              </button>
-            </div>
 
             {loading && (
               <div className="loading">
@@ -120,9 +118,14 @@ function App() {
             
             {!loading && !error && games.length > 0 && (
               <div className="games-container">
-                <h2 className="games-title">
-                  <span>🎲</span> Your Games ({games.length})
-                </h2>
+                <div className="games-info">
+                  <h2 className="games-title">
+                    <span>🎲</span> Your Games ({games.length})
+                  </h2>
+                  <div className="games-location">
+                    📂 {selectedPath}
+                  </div>
+                </div>
                 <div className="games-grid">
                   {games.map((game, index) => (
                     <div 
