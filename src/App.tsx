@@ -1,172 +1,161 @@
 import { useState, useEffect } from "react";
-import reactLogo from "./assets/react.svg";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import "./App.css";
 
-interface FolderEntry {
+interface GameEntry {
   name: string;
   path: string;
 }
 
 function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
-  const [folders, setFolders] = useState<FolderEntry[]>([]);
+  const [games, setGames] = useState<GameEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
-  }
-
-  // Load folders when selected path changes
+  // Load games when selected path changes
   useEffect(() => {
     if (!selectedPath) return;
     
-    async function loadFolders() {
+    async function loadGames() {
       try {
         setLoading(true);
         setError(null);
-        const result = await invoke<FolderEntry[]>("read_folders_from_path", { 
+        const result = await invoke<GameEntry[]>("read_folders_from_path", { 
           folderPath: selectedPath 
         });
-        setFolders(result);
+        setGames(result);
       } catch (err) {
         console.error(err);
-        setError(err instanceof Error ? err.message : "Failed to load folders");
-        setFolders([]);
+        setError(err instanceof Error ? err.message : "Failed to load games");
+        setGames([]);
       } finally {
         setLoading(false);
       }
     }
 
-    loadFolders();
+    loadGames();
   }, [selectedPath]);
 
-  async function selectFolder() {
+  async function selectGamesFolder() {
     try {
       const selected = await open({
         directory: true,
         multiple: false,
-        title: "Select a folder to browse"
+        title: "Select your games folder"
       });
       
       if (selected && typeof selected === 'string') {
         setSelectedPath(selected);
       }
     } catch (err) {
-      console.error("Error selecting folder:", err);
-      setError("Failed to select folder");
+      console.error("Error selecting games folder:", err);
+      setError("Failed to select games folder");
     }
   }
 
   return (
     <main className="container">
-      <h1>Welcome to Tauri + React</h1>
-
-      <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+      <div className="header">
+        <h1 className="title">
+          <span className="game-icon">🎮</span>
+          Game Grove
+          <span className="game-icon">🎯</span>
+        </h1>
+        <p className="subtitle">Your awesome game collection!</p>
       </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
 
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
-
-      <div style={{ marginTop: "2rem", textAlign: "left" }}>
-        <h2>Folder Browser</h2>
-        
-        <div style={{ marginBottom: "1rem" }}>
-          <button 
-            onClick={selectFolder}
-            style={{
-              padding: "0.75rem 1.5rem",
-              fontSize: "1rem",
-              borderRadius: "8px",
-              border: "1px solid #646cff",
-              backgroundColor: "#1a1a1a",
-              color: "#fff",
-              cursor: "pointer",
-              transition: "all 0.25s"
-            }}
-          >
-            📁 Select Folder
-          </button>
-          
-          {selectedPath && (
-            <div style={{ 
-              marginTop: "0.5rem", 
-              padding: "0.5rem",
-              backgroundColor: "#2a2a2a",
-              borderRadius: "4px",
-              fontSize: "0.9em"
-            }}>
-              <strong>Selected path:</strong> {selectedPath}
+      <div className="games-section">
+        {!selectedPath ? (
+          <div className="welcome-section">
+            <div className="welcome-message">
+              <h2>🚀 Ready to play?</h2>
+              <p>Choose where your games live!</p>
             </div>
-          )}
-        </div>
-
-        {!selectedPath && (
-          <p style={{ color: "#888" }}>Please select a folder to browse its contents</p>
-        )}
-        
-        {selectedPath && loading && <p>Loading folders...</p>}
-        {selectedPath && error && <p style={{ color: "red" }}>Error: {error}</p>}
-        {selectedPath && !loading && !error && folders.length === 0 && (
-          <p>No folders found in the selected directory</p>
-        )}
-        {selectedPath && !loading && !error && folders.length > 0 && (
-          <ul style={{ 
-            listStyle: "none", 
-            maxHeight: "400px",
-            overflowY: "auto",
-            border: "1px solid #333",
-            borderRadius: "8px",
-            padding: "1rem"
-          }}>
-            {folders.map((folder) => (
-              <li 
-                key={folder.path} 
-                style={{ 
-                  padding: "0.5rem",
-                  borderBottom: "1px solid #222",
-                  marginBottom: "0.5rem"
-                }}
+            <button 
+              onClick={selectGamesFolder}
+              className="select-button"
+            >
+              <span className="button-icon">📂</span>
+              Choose Games Folder
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="games-header">
+              <div className="selected-path">
+                <strong>🏠 Games Home:</strong>
+                <span className="path-text">{selectedPath}</span>
+              </div>
+              <button 
+                onClick={selectGamesFolder}
+                className="change-folder-button"
               >
-                <strong>📁 {folder.name}</strong>
-                <div style={{ fontSize: "0.85em", color: "#888", marginTop: "0.25rem" }}>
-                  {folder.path}
+                Change Folder
+              </button>
+            </div>
+
+            {loading && (
+              <div className="loading">
+                <span className="loading-icon">⏳</span>
+                <p>Loading your games...</p>
+              </div>
+            )}
+            
+            {error && (
+              <div className="error">
+                <span className="error-icon">😕</span>
+                <p>Oops! {error}</p>
+              </div>
+            )}
+            
+            {!loading && !error && games.length === 0 && (
+              <div className="no-games">
+                <span className="no-games-icon">📭</span>
+                <p>No games found here yet!</p>
+                <p className="hint">Make sure each game has its own folder in your games directory.</p>
+              </div>
+            )}
+            
+            {!loading && !error && games.length > 0 && (
+              <div className="games-container">
+                <h2 className="games-title">
+                  <span>🎲</span> Your Games ({games.length})
+                </h2>
+                <div className="games-grid">
+                  {games.map((game, index) => (
+                    <div 
+                      key={game.path} 
+                      className="game-card"
+                      style={{
+                        animationDelay: `${index * 0.05}s`
+                      }}
+                    >
+                      <div className="game-icon-large">
+                        {getGameIcon(index)}
+                      </div>
+                      <div className="game-name">
+                        {game.name}
+                      </div>
+                      <div className="game-path">
+                        {game.path}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </li>
-            ))}
-          </ul>
+              </div>
+            )}
+          </>
         )}
       </div>
     </main>
   );
+}
+
+function getGameIcon(index: number): string {
+  const icons = ["🎮", "🎯", "🎲", "🎨", "🏆", "⚡", "🌟", "🚀", "🎪", "🎸", "🏰", "🦄", "🐉", "⚔️", "🛡️", "💎"];
+  return icons[index % icons.length];
 }
 
 export default App;
