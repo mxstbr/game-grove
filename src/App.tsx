@@ -33,21 +33,26 @@ function App() {
   useEffect(() => {
     async function initializeStore() {
       try {
-        const appStore = await Store.load('app_settings.json');
+        const appStore = await Store.load("app_settings.json", {
+          defaults: {
+            selected_games_path: null,
+          },
+        });
         setStore(appStore);
-        
+
         // Load saved path from store
-        const savedPath = await appStore.get<string>('selected_games_path');
+        const savedPath = await appStore.get<string>("selected_games_path");
+        console.log("Loaded saved path from store:", savedPath);
         if (savedPath) {
           setSelectedPath(savedPath);
         }
       } catch (err) {
-        console.error('Failed to initialize store:', err);
+        console.error("Failed to initialize store:", err);
       } finally {
         setInitializing(false);
       }
     }
-    
+
     initializeStore();
   }, []);
 
@@ -60,10 +65,10 @@ function App() {
         if (update?.available) {
           setUpdateAvailable(true);
           setUpdateInfo(update);
-          console.log('Update available:', update.version);
+          console.log("Update available:", update.version);
         }
       } catch (error) {
-        console.error('Failed to check for updates:', error);
+        console.error("Failed to check for updates:", error);
       } finally {
         setCheckingUpdate(false);
       }
@@ -78,31 +83,30 @@ function App() {
   // Handle update installation
   async function handleUpdate() {
     if (!updateInfo) return;
-    
+
     try {
       setDownloading(true);
-      console.log('Downloading and installing update...');
-      
+      console.log("Downloading and installing update...");
+
       // Download and install the update
       await updateInfo.downloadAndInstall((event: any) => {
         switch (event.event) {
-          case 'Started':
-            console.log('Update download started');
+          case "Started":
+            console.log("Update download started");
             break;
-          case 'Progress':
+          case "Progress":
             console.log(`Download progress: ${event.data.chunkLength} bytes`);
             break;
-          case 'Finished':
-            console.log('Update download finished');
+          case "Finished":
+            console.log("Update download finished");
             break;
         }
       });
 
       // Restart the app to apply the update
-      console.log('Restarting application...');
-      
+      console.log("Restarting application...");
     } catch (error) {
-      console.error('Failed to install update:', error);
+      console.error("Failed to install update:", error);
       setDownloading(false);
     }
   }
@@ -110,16 +114,18 @@ function App() {
   // Load games when selected path changes
   useEffect(() => {
     if (!selectedPath) return;
-    
+
     async function loadGames() {
       try {
         setLoading(true);
         setError(null);
-        const result = await invoke<GameEntry[]>("read_folders_from_path", { 
-          folderPath: selectedPath 
+        const result = await invoke<GameEntry[]>("read_folders_from_path", {
+          folderPath: selectedPath,
         });
         // Sort by last modified (newest first)
-        const sortedGames = result.sort((a, b) => b.last_modified - a.last_modified);
+        const sortedGames = result.sort(
+          (a, b) => b.last_modified - a.last_modified,
+        );
         setGames(sortedGames);
       } catch (err) {
         console.error(err);
@@ -136,17 +142,19 @@ function App() {
   // Save selected path to store whenever it changes
   useEffect(() => {
     if (!store || initializing) return;
-    
+
     async function saveSelectedPath() {
       if (!store) return; // Extra check to satisfy TypeScript
       try {
-        await store.set('selected_games_path', selectedPath);
+        console.log("Saving selected path to store:", selectedPath);
+        await store.set("selected_games_path", selectedPath);
         await store.save(); // Ensure changes are persisted to disk
+        console.log("Successfully saved selected path to store");
       } catch (err) {
-        console.error('Failed to save selected path:', err);
+        console.error("Failed to save selected path:", err);
       }
     }
-    
+
     saveSelectedPath();
   }, [selectedPath, store, initializing]);
 
@@ -155,10 +163,10 @@ function App() {
       const selected = await open({
         directory: true,
         multiple: false,
-        title: "Select your games folder"
+        title: "Select your games folder",
       });
-      
-      if (selected && typeof selected === 'string') {
+
+      if (selected && typeof selected === "string") {
         setSelectedPath(selected);
       }
     } catch (err) {
@@ -172,17 +180,17 @@ function App() {
     return name
       .toLowerCase()
       .trim()
-      .replace(/[^a-z0-9\s-]/g, '') // Remove special characters except spaces and hyphens
-      .replace(/\s+/g, '-')         // Replace spaces with hyphens
-      .replace(/-+/g, '-')          // Replace multiple hyphens with single hyphen
-      .replace(/^-+|-+$/g, '');     // Remove leading/trailing hyphens
+      .replace(/[^a-z0-9\s-]/g, "") // Remove special characters except spaces and hyphens
+      .replace(/\s+/g, "-") // Replace spaces with hyphens
+      .replace(/-+/g, "-") // Replace multiple hyphens with single hyphen
+      .replace(/^-+|-+$/g, ""); // Remove leading/trailing hyphens
   }
 
   async function createNewGame() {
     if (!selectedPath || !newGameName.trim() || !gameType) return;
 
     const formattedName = formatGameNameForFilesystem(newGameName);
-    
+
     if (!formattedName) {
       setError("Please enter a valid game name");
       return;
@@ -191,21 +199,23 @@ function App() {
     try {
       setCreating(true);
       setError(null);
-      
+
       await invoke("create_game_folder", {
         parentPath: selectedPath,
         folderName: formattedName,
-        gameType: gameType
+        gameType: gameType,
       });
 
       // Reload games list
-      const result = await invoke<GameEntry[]>("read_folders_from_path", { 
-        folderPath: selectedPath 
+      const result = await invoke<GameEntry[]>("read_folders_from_path", {
+        folderPath: selectedPath,
       });
       // Sort by last modified (newest first)
-      const sortedGames = result.sort((a, b) => b.last_modified - a.last_modified);
+      const sortedGames = result.sort(
+        (a, b) => b.last_modified - a.last_modified,
+      );
       setGames(sortedGames);
-      
+
       // Reset modal state
       setShowCreateModal(false);
       setNewGameName("");
@@ -213,7 +223,9 @@ function App() {
       setCreateStep("type");
     } catch (err) {
       console.error("Error creating game folder:", err);
-      setError(err instanceof Error ? err.message : "Failed to create game folder");
+      setError(
+        err instanceof Error ? err.message : "Failed to create game folder",
+      );
     } finally {
       setCreating(false);
     }
@@ -249,7 +261,9 @@ function App() {
       await invoke("open_html_in_browser", { folderPath: gamePath });
     } catch (err) {
       console.error("Error opening in browser:", err);
-      setError(err instanceof Error ? err.message : "Failed to open in browser");
+      setError(
+        err instanceof Error ? err.message : "Failed to open in browser",
+      );
     }
   }
 
@@ -269,7 +283,7 @@ function App() {
     <main className="container">
       {selectedPath && (
         <>
-          <button 
+          <button
             onClick={selectGamesFolder}
             className="settings-button"
             title="Change games folder"
@@ -285,7 +299,7 @@ function App() {
           </button>
         </>
       )}
-      
+
       <div className="header">
         <h1 className="title">
           <span className="game-icon">🎮</span>
@@ -305,14 +319,14 @@ function App() {
               <p>Version {updateInfo?.version} is ready to install.</p>
             </div>
             <div className="update-actions">
-              <button 
-                onClick={handleUpdate} 
+              <button
+                onClick={handleUpdate}
                 disabled={downloading}
                 className="update-button"
               >
                 {downloading ? "Installing..." : "Update Now"}
               </button>
-              <button 
+              <button
                 onClick={() => setUpdateAvailable(false)}
                 className="dismiss-button"
               >
@@ -338,68 +352,61 @@ function App() {
               <h2>🚀 Ready to play?</h2>
               <p>Choose where your games live!</p>
             </div>
-            <button 
-              onClick={selectGamesFolder}
-              className="select-button"
-            >
+            <button onClick={selectGamesFolder} className="select-button">
               <span className="button-icon">📂</span>
               Choose Games Folder
             </button>
           </div>
         ) : (
           <>
-
             {loading && (
               <div className="loading">
                 <span className="loading-icon">⏳</span>
                 <p>Loading your games...</p>
               </div>
             )}
-            
+
             {error && (
               <div className="error">
                 <span className="error-icon">😕</span>
                 <p>Oops! {error}</p>
               </div>
             )}
-            
+
             {!loading && !error && games.length === 0 && (
               <div className="no-games">
                 <span className="no-games-icon">📭</span>
                 <p>No games found here yet!</p>
-                <p className="hint">Make sure each game has its own folder in your games directory.</p>
+                <p className="hint">
+                  Make sure each game has its own folder in your games
+                  directory.
+                </p>
               </div>
             )}
-            
+
             {!loading && !error && games.length > 0 && !selectedGame && (
               <div className="games-container">
                 <div className="games-info">
                   <h2 className="games-title">
                     <span>🎲</span> Your Games ({games.length})
                   </h2>
-                  <div className="games-location">
-                    📂 {selectedPath}
-                  </div>
+                  <div className="games-location">📂 {selectedPath}</div>
                 </div>
                 <div className="games-grid">
                   {games.map((game, index) => (
-                    <div 
-                      key={game.path} 
+                    <div
+                      key={game.path}
                       className="game-card clickable"
                       style={{
-                        animationDelay: `${index * 0.05}s`
+                        animationDelay: `${index * 0.05}s`,
                       }}
                       onClick={() => setSelectedGame(game)}
                     >
                       <div className="game-icon-large">
                         {getGameIcon(index)}
                       </div>
-                      <div className="game-name">
-                        {game.name}
-                      </div>
-                      <div className="game-path">
-                        {game.path}
-                      </div>
+                      <div className="game-name">{game.name}</div>
+                      <div className="game-path">{game.path}</div>
                     </div>
                   ))}
                 </div>
@@ -409,7 +416,7 @@ function App() {
             {!loading && !error && selectedGame && (
               <div className="game-detail">
                 <div className="game-detail-header">
-                  <button 
+                  <button
                     className="back-button"
                     onClick={() => setSelectedGame(null)}
                     title="Back to games list"
@@ -418,17 +425,20 @@ function App() {
                   </button>
                   <h2 className="game-detail-title">
                     <span className="game-icon-large">
-                      {getGameIcon(games.findIndex(g => g.path === selectedGame.path))}
+                      {getGameIcon(
+                        games.findIndex((g) => g.path === selectedGame.path),
+                      )}
                     </span>
                     {selectedGame.name}
                   </h2>
                 </div>
                 <div className="game-detail-info">
-                  <div className="game-detail-path">
-                    📂 {selectedGame.path}
-                  </div>
+                  <div className="game-detail-path">📂 {selectedGame.path}</div>
                   <div className="game-detail-modified">
-                    🕒 Last modified: {new Date(selectedGame.last_modified * 1000).toLocaleString()}
+                    🕒 Last modified:{" "}
+                    {new Date(
+                      selectedGame.last_modified * 1000,
+                    ).toLocaleString()}
                   </div>
                 </div>
                 <div className="game-detail-actions">
@@ -462,10 +472,14 @@ function App() {
             {createStep === "type" ? (
               <>
                 <h2>🎮 Choose Game Type</h2>
-                <p className="modal-description">What kind of game do you want to create?</p>
+                <p className="modal-description">
+                  What kind of game do you want to create?
+                </p>
                 <div className="game-type-selection">
                   <button
-                    className={`game-type-button ${gameType === "2d" ? "selected" : ""}`}
+                    className={`game-type-button ${
+                      gameType === "2d" ? "selected" : ""
+                    }`}
                     onClick={() => {
                       setGameType("2d");
                       setCreateStep("name");
@@ -473,10 +487,15 @@ function App() {
                   >
                     <div className="game-type-icon">🎲</div>
                     <div className="game-type-title">2D Game</div>
-                    <div className="game-type-description">Perfect for side-scrollers, puzzle games, and classic arcade fun!</div>
+                    <div className="game-type-description">
+                      Perfect for side-scrollers, puzzle games, and classic
+                      arcade fun!
+                    </div>
                   </button>
                   <button
-                    className={`game-type-button ${gameType === "3d" ? "selected" : ""}`}
+                    className={`game-type-button ${
+                      gameType === "3d" ? "selected" : ""
+                    }`}
                     onClick={() => {
                       setGameType("3d");
                       setCreateStep("name");
@@ -484,7 +503,10 @@ function App() {
                   >
                     <div className="game-type-icon">🎯</div>
                     <div className="game-type-title">3D Game</div>
-                    <div className="game-type-description">Great for adventures, exploration, and immersive experiences!</div>
+                    <div className="game-type-description">
+                      Great for adventures, exploration, and immersive
+                      experiences!
+                    </div>
                   </button>
                 </div>
                 <div className="modal-buttons">
@@ -500,7 +522,8 @@ function App() {
               <>
                 <h2>🚀 Name Your Game</h2>
                 <p className="modal-description">
-                  Creating a <strong>{gameType?.toUpperCase()} game</strong> - What should we call it?
+                  Creating a <strong>{gameType?.toUpperCase()} game</strong> -
+                  What should we call it?
                 </p>
                 <input
                   type="text"
@@ -508,9 +531,9 @@ function App() {
                   value={newGameName}
                   onChange={(e) => setNewGameName(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !creating && newGameName.trim()) {
+                    if (e.key === "Enter" && !creating && newGameName.trim()) {
                       createNewGame();
-                    } else if (e.key === 'Escape') {
+                    } else if (e.key === "Escape") {
                       handleCancelCreate();
                     }
                   }}
@@ -519,12 +542,13 @@ function App() {
                 />
                 {newGameName && (
                   <p className="folder-preview">
-                    Folder name: <strong>{formatGameNameForFilesystem(newGameName) || '...'}</strong>
+                    Folder name:{" "}
+                    <strong>
+                      {formatGameNameForFilesystem(newGameName) || "..."}
+                    </strong>
                   </p>
                 )}
-                {error && (
-                  <p className="modal-error">{error}</p>
-                )}
+                {error && <p className="modal-error">{error}</p>}
                 <div className="modal-buttons">
                   <button
                     onClick={() => setCreateStep("type")}
@@ -545,7 +569,7 @@ function App() {
                     disabled={creating || !newGameName.trim()}
                     className="confirm-button"
                   >
-                    {creating ? 'Creating...' : 'Create Game'}
+                    {creating ? "Creating..." : "Create Game"}
                   </button>
                 </div>
               </>
@@ -558,7 +582,24 @@ function App() {
 }
 
 function getGameIcon(index: number): string {
-  const icons = ["🎮", "🎯", "🎲", "🎨", "🏆", "⚡", "🌟", "🚀", "🎪", "🎸", "🏰", "🦄", "🐉", "⚔️", "🛡️", "💎"];
+  const icons = [
+    "🎮",
+    "🎯",
+    "🎲",
+    "🎨",
+    "🏆",
+    "⚡",
+    "🌟",
+    "🚀",
+    "🎪",
+    "🎸",
+    "🏰",
+    "🦄",
+    "🐉",
+    "⚔️",
+    "🛡️",
+    "💎",
+  ];
   return icons[index % icons.length];
 }
 
