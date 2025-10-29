@@ -4,7 +4,8 @@ use std::process::Command;
 use serde::Serialize;
 use tauri_plugin_store::StoreExt;
 use serde_json::json;
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
+use tauri::path::BaseDirectory;
 
 mod menu;
 
@@ -133,7 +134,7 @@ fn read_folders_from_path(folder_path: String) -> Result<Vec<FolderEntry>, Strin
 }
 
 #[tauri::command]
-fn create_game_folder(parent_path: String, folder_name: String, game_type: String) -> Result<String, String> {
+fn create_game_folder(parent_path: String, folder_name: String, game_type: String, app_handle: tauri::AppHandle) -> Result<String, String> {
     let parent = PathBuf::from(&parent_path);
     
     // Check if parent directory exists
@@ -163,35 +164,33 @@ fn create_game_folder(parent_path: String, folder_name: String, game_type: Strin
         .map_err(|e| format!("Failed to create folder: {}", e))?;
     
     // Copy boilerplate files
-    copy_boilerplate_files(&game_type, &new_folder_path)?;
+    copy_boilerplate_files(&game_type, &new_folder_path, &app_handle)?;
     
     Ok(new_folder_path.to_string_lossy().to_string())
 }
 
-fn copy_boilerplate_files(game_type: &str, target_path: &PathBuf) -> Result<(), String> {
-    // Get current working directory
+fn copy_boilerplate_files(game_type: &str, target_path: &PathBuf, app_handle: &tauri::AppHandle) -> Result<(), String> {
+    // Try to resolve the boilerplate directory from bundled resources first
+    let resource_path = format!("{}-game-boilerplate", game_type);
+    
+    // First try to resolve from bundled resources
+    if let Ok(source_dir) = app_handle.path().resolve(&resource_path, BaseDirectory::Resource) {
+        if source_dir.exists() && source_dir.is_dir() {
+            return copy_dir_contents(&source_dir, target_path)
+                .map_err(|e| format!("Failed to copy boilerplate files from resources: {}", e));
+        }
+    }
+    
+    // Fallback to development mode - look for boilerplate templates in filesystem
     let current_dir = std::env::current_dir()
         .map_err(|e| format!("Failed to get current directory: {}", e))?;
     
-    // Get the executable directory 
-    let exe_dir = std::env::current_exe()
-        .map_err(|e| format!("Failed to get executable directory: {}", e))?
-        .parent()
-        .ok_or("Failed to get parent directory of executable")?
-        .to_path_buf();
-    
-    // Look for boilerplate templates in various possible locations
+    // Look for boilerplate templates in development locations
     let possible_source_dirs = vec![
         // For development (from current working directory)
         current_dir.join("src").join(format!("{}-game-boilerplate", game_type)),
         // For development (from project root)
         PathBuf::from("src").join(format!("{}-game-boilerplate", game_type)),
-        // For packaged app (relative to executable)
-        exe_dir.join("src").join(format!("{}-game-boilerplate", game_type)),
-        // For packaged app (go up from target/debug or similar)
-        exe_dir.parent().unwrap_or(&exe_dir).join("src").join(format!("{}-game-boilerplate", game_type)),
-        exe_dir.parent().unwrap_or(&exe_dir).parent().unwrap_or(&exe_dir).join("src").join(format!("{}-game-boilerplate", game_type)),
-        exe_dir.parent().unwrap_or(&exe_dir).parent().unwrap_or(&exe_dir).parent().unwrap_or(&exe_dir).join("src").join(format!("{}-game-boilerplate", game_type)),
     ];
     
     let mut source_dir: Option<PathBuf> = None;
