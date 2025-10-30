@@ -171,13 +171,20 @@ fn create_game_folder(parent_path: String, folder_name: String, game_type: Strin
 
 fn copy_boilerplate_files(game_type: &str, target_path: &PathBuf, app_handle: &tauri::AppHandle) -> Result<(), String> {
     // Try to resolve the boilerplate directory from bundled resources first
-    let resource_path = format!("{}-game-boilerplate", game_type);
+    let resource_paths = vec![
+        format!("{}-game-boilerplate", game_type),
+        format!("{}-game-boilerplate/", game_type),
+        format!("../src/{}-game-boilerplate", game_type),
+        format!("../src/{}-game-boilerplate/", game_type),
+    ];
     
-    // First try to resolve from bundled resources
-    if let Ok(source_dir) = app_handle.path().resolve(&resource_path, BaseDirectory::Resource) {
-        if source_dir.exists() && source_dir.is_dir() {
-            return copy_dir_contents(&source_dir, target_path)
-                .map_err(|e| format!("Failed to copy boilerplate files from resources: {}", e));
+    for resource_path in &resource_paths {
+        // First try to resolve from bundled resources
+        if let Ok(source_dir) = app_handle.path().resolve(resource_path, BaseDirectory::Resource) {
+            if source_dir.exists() && source_dir.is_dir() {
+                return copy_dir_contents(&source_dir, target_path)
+                    .map_err(|e| format!("Failed to copy boilerplate files from resources: {}", e));
+            }
         }
     }
     
@@ -185,19 +192,27 @@ fn copy_boilerplate_files(game_type: &str, target_path: &PathBuf, app_handle: &t
     let current_dir = std::env::current_dir()
         .map_err(|e| format!("Failed to get current directory: {}", e))?;
     
+    // Get the project root by looking for Cargo.toml
+    let project_root = find_project_root();
+    
     // Look for boilerplate templates in development locations
     let possible_source_dirs = vec![
         // For development (from current working directory)
         current_dir.join("src").join(format!("{}-game-boilerplate", game_type)),
         // For development (from project root)
+        project_root.join("src").join(format!("{}-game-boilerplate", game_type)),
+        // Try relative path from current directory
         PathBuf::from("src").join(format!("{}-game-boilerplate", game_type)),
+        // Try relative path from project root
+        project_root.join("src").join(format!("{}-game-boilerplate", game_type)),
     ];
     
     let mut source_dir: Option<PathBuf> = None;
     let mut checked_paths = Vec::new();
     
     for possible_dir in possible_source_dirs {
-        checked_paths.push(possible_dir.to_string_lossy().to_string());
+        let path_str = possible_dir.to_string_lossy().to_string();
+        checked_paths.push(path_str);
         if possible_dir.exists() && possible_dir.is_dir() {
             source_dir = Some(possible_dir);
             break;
@@ -213,6 +228,25 @@ fn copy_boilerplate_files(game_type: &str, target_path: &PathBuf, app_handle: &t
     // Copy all files from the boilerplate directory to the target
     copy_dir_contents(&source_dir, target_path)
         .map_err(|e| format!("Failed to copy boilerplate files: {}", e))
+}
+
+fn find_project_root() -> PathBuf {
+    let mut current = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    
+    loop {
+        if current.join("Cargo.toml").exists() {
+            return current;
+        }
+        
+        if let Some(parent) = current.parent() {
+            current = parent.to_path_buf();
+        } else {
+            break;
+        }
+    }
+    
+    // Fallback to current directory if we can't find Cargo.toml
+    std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
 }
 
 fn copy_dir_contents(source: &PathBuf, target: &PathBuf) -> Result<(), std::io::Error> {
